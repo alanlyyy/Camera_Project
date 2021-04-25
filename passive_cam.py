@@ -36,7 +36,7 @@ import datetime
 import os
 from shutil import rmtree
 
-PIR = 17 #actual PIR is 27
+PIR = 27 #actual PIR is 27
 DHT_pin = 4
 PB = 17
 
@@ -44,9 +44,9 @@ PB = 17
 MODE_SWITCH_PB = 22    #PIN 15,GPIO22
 MODE_WRITE_OUTPUT = 23 #PIN 16, GPIO23 
 
-warm_up_time = 30
+warm_up_time = 60
 temp_read_delay_time = 30
-camera_record_time = 15
+camera_record_time = 30
 space_limit = 0.70
 base_path = '/home/pi/Videos'
 camera_record_mode = 1
@@ -66,13 +66,13 @@ else:
 class Passive_Cam:
     """passive camera mode, records 30s videos when PIR is detected."""
     
-    def __init__(self,PI_GPIO,PIR,DHT_pin,PB,MS_PB,MWO):
+    def __init__(self,PI_GPIO,PIR,DHT_pin,CAM_PB,MS_PB,MWO):
         
         self.pi = PI_GPIO
         #store pin numbers
         self.PIR = PIR
         self.DHT_pin = DHT_pin
-        self.PB = PB
+        self.PB = CAM_PB
         
         #hardware release switch
         self.MS_PB = MS_PB
@@ -81,8 +81,9 @@ class Passive_Cam:
         self.pi.set_mode(self.DHT_pin,pigpio.INPUT)   
         self.pi.set_pull_up_down(self.DHT_pin,pigpio.PUD_UP)
         
-        #self.pi.set_mode(PIR, pigpio.INPUT)    #set gpio27 as input
-        #self.pi.set_pull_up_down(PIR,pigpio.PUD_DOWN) #enable pull down resistor
+        #must connect power of PIR with +5V and GND
+        self.pi.set_mode(self.PIR, pigpio.INPUT)    #set gpio27 as input
+        self.pi.set_pull_up_down(self.PIR,pigpio.PUD_DOWN) #enable pull down resistor
         
         #for push button
         self.pi.set_mode(self.PB, pigpio.INPUT)
@@ -98,6 +99,9 @@ class Passive_Cam:
         print("Warming Up...")
         
         #allow sensor to warm up for 60s before recording
+        #camera warm up 
+        #DHT11 warm up
+        #PIR warm up
         time.sleep(warm_up_time)
         
         print("System is ready...")
@@ -236,8 +240,14 @@ class Passive_Cam:
         rmtree(oldest_directory)
     
     def roll(self):
+        
+        #if we detect a high signal at GPIO27 start recording.
+        #by default pin GPIO27 is pulled down to ground.
+        if (self.pi.read(self.PIR) == 1):
+        
+            #pir has already been activated.
+            self.PIR_FLAG = 1
             
-        if (self.pi.read(self.PB) ==0):
             #if camera is already recording break out of loop
             if (self.is_camera_recording == 0):
                 

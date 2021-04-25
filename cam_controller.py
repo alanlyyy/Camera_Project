@@ -159,6 +159,8 @@ class UI_MainWindow(QtWidgets.QMainWindow):
         self._generator = None
         self._timerId = None
         
+        #implement passive cam clicked function at start.
+        self.on_passive_cam_clicked()
 
     def retranslateUi(self):
         _translate = QtCore.QCoreApplication.translate
@@ -216,8 +218,12 @@ class UI_MainWindow(QtWidgets.QMainWindow):
         self.passive_cam_obj = passive_cam.Passive_Cam(pi,passive_cam.PIR, passive_cam.DHT_pin, passive_cam.PB, passive_cam.MODE_SWITCH_PB, passive_cam.MODE_WRITE_OUTPUT )
         
         while True:
-            self.passive_cam_obj.roll()
-            
+        
+            #if PB is pressed break
+            if(self.passive_cam_obj.roll() == 0):
+                break
+                
+            #if GUI button is pressed break
             if (sub_window.button_clicked ==1):
                 break
                 
@@ -262,24 +268,6 @@ class UI_MainWindow(QtWidgets.QMainWindow):
         
         self.active_cam.setEnabled(True)
         self.passive_cam.setEnabled(True)
-
-    def activate_passive_cam(self):
-        """
-        Turn on passive_cam for thread.
-        
-        """
-        
-        #start thread pass MainWindow object into thread
-        #in thread create button in MainWindow
-        #connect the button to function
-        #when button is pressed pass 0 to pyqtsignal(int) 
-        #output the pyqt signal to the while loop to exit out of the loop
-        self.passive_cam_obj = passive_cam.Passive_Cam(pi,passive_cam.PIR, passive_cam.DHT_pin, passive_cam.PB, passive_cam.MODE_SWITCH_PB, passive_cam.MODE_WRITE_OUTPUT )
-        
-        while True:
-            self.passive_cam_obj.roll()
-            
-            #create a GUI stop button IN MAINWINDOW to release passive cam to switch to active cam
 
 
     def closeEvent(self, event):
