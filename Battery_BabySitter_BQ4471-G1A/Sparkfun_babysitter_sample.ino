@@ -1,8 +1,21 @@
 #include "C:\Users\Alan\Downloads\SparkFun_BQ27441_Arduino_Library-master\SparkFun_BQ27441_Arduino_Library-master\src\SparkFunBQ27441.h"
 #include <Wire.h>
 
+
+// Set BATTERY_CAPACITY to the design capacity of your battery.
+const unsigned int BATTERY_CAPACITY = 2000; // e.g. 850mAh battery
+
+const byte SOCI_SET = 15; // Interrupt set threshold at 20%
+const byte SOCI_CLR = 20; // Interrupt clear threshold at 25%
+const byte SOCF_SET = 5; // Final threshold set at 5%
+const byte SOCF_CLR = 10; // Final threshold clear at 10%
+
+// Arduino pin connected to BQ27441's GPOUT pin
+const int GPOUT_PIN = 2;
+
 void setup() {
   // put your setup code here, to run once:
+  pinMode(GPOUT_PIN, INPUT_PULLUP); // Set the GPOUT pin as an input w/ pullup
   Serial.begin(115200);
   Wire.begin();  //enable I2C transmission
 
@@ -19,11 +32,34 @@ void setup() {
     while (1);
   }
 
-  //Serial.println(check_if_sealed());
-  //Serial.println(unseal_device());
-  //check_fuel_guage_config();
+  // In this example, we'll manually enter and exit config mode. By controlling
+  // config mode manually, you can set the chip up faster -- completing all of
+  // the set up in a single config mode sweep.
+  write_enterConfig(); // To configure the values below, you must be in config mode
+  set_capacity2(BATTERY_CAPACITY); // Set the battery capacity
+  write_setGPOUTPolarity(LOW); // Set GPOUT to active-high
+  write_setGPOUTFunction(BAT_LOW); // Set GPOUT to BAT_LOW mode
+  write_setSOC1Thresholds(SOCI_SET, SOCI_CLR); // Set SOCI set and clear thresholds
+  write_setSOCFThresholds(SOCF_SET, SOCF_CLR); // Set SOCF set and clear thresholds
+  write_exitConfig();
 
-  set_capacity(2000);
+  // Use lipo.GPOUTPolarity to read from the chip and confirm the changes
+  if (read_GPOUTPolarity())
+    Serial.println("GPOUT set to active-HIGH");
+  else
+    Serial.println("GPOUT set to active-LOW");
+
+  // Use lipo.GPOUTFunction to confirm the functionality of GPOUT
+  if (read_GPOUTFunction())
+    Serial.println("GPOUT function set to BAT_LOW");
+  else
+    Serial.println("GPOUT function set to SOC_INT");
+
+  // Read the set and clear thresholds to make sure they were set correctly
+  Serial.println("SOC1 Set Threshold: " + String((read_SOC1SetThreshold())));
+  Serial.println("SOC1 Clear Threshold: " + String(read_SOC1ClearThreshold()));
+  Serial.println("SOCF Set Threshold: " + String(read_SOCFSetThreshold()));
+  Serial.println("SOCF Clear Threshold: " + String(read_SOCFClearThreshold()));
 }
 
 uint16_t get_device_type() {
@@ -57,13 +93,10 @@ uint16_t get_device_type() {
   }
   Wire.endTransmission(true);
 
-  //convert data[1] from uint8_t to uint16_t shift bits left by 8 bits, and OR with data[0] uint8_t
-  Serial.println(((uint16_t)data[1] << 8) | data[0]);     //0000010000100001
-
   return ((uint16_t)data[1] << 8) | data[0];
 }
 
-bool enterConfig(){
+bool write_enterConfig(){
     check_if_sealed();
     unseal_device();
     unseal_device();
@@ -73,7 +106,7 @@ bool enterConfig(){
     }
   }
 
-bool exitConfig(){
+bool write_exitConfig(){
   //exit out of configuration mode.
   
   
@@ -132,8 +165,6 @@ bool exitConfig(){
     {
       data_seal[i] = Wire.read();
     }
-    Serial.print("Sealed Device ");
-    Serial.println( ((uint16_t)data_seal[1] << 8) | data_seal[0]);
   }
 
   return true;
@@ -168,14 +199,11 @@ bool check_if_sealed(void) {
 
   uint16_t status =  ((uint16_t)data[1] << 8) | data[0];
 
-  Serial.print("Device is sealed: "); 
-  Serial.println(status);
-  Serial.println(status & (1 << 13));
   return status & (1 << 13);
 }
 
 bool unseal_device(void) {
-  //UNSEAL device
+  //UNSEAL devices
   //readControlWord(BQ27441_UNSEAL_KEY);
   uint8_t subCommandMSB = (0x8000 >> 8);
   uint8_t subCommandLSB = (0x8000 & 0x00FF);
@@ -201,8 +229,6 @@ bool unseal_device(void) {
   {
     data_unseal_read[i] = Wire.read();
   }
-  Serial.print("Device is unsealed: ");
-  Serial.println(((uint16_t)data_unseal_read[1] << 8) | data_unseal_read[0]);
   return ((uint16_t)data_unseal_read[1] << 8) | data_unseal_read[0];
 }
 
@@ -248,14 +274,19 @@ bool check_fuel_guage_config() {
   while ((timeout--) && (!(flags & (1 << 4) )))  //BQ27441_FLAG_CFGUPMODE  (1<<4)
     delay(1);
 
-  Serial.print("fuel guage config: ");
-  Serial.println((flags & (1 << 4) )); //if 0 there isn't config update detected, if 1 config update detected.
-
-
   if (timeout > 0)
     return true;
 }
 
+bool set_capacity2(uint16_t capacity)
+{
+  //high level version of set_capacity hiding the details.
+  uint8_t capMSB = capacity >> 8;
+  uint8_t capLSB = capacity & 0x00FF;
+  uint8_t capacityData[2] = {capMSB, capLSB};
+
+  write_extended_data(82, 10, capacityData, 2);
+}
 bool set_capacity(uint16_t capacity)
 {
     // Write to STATE subclass (82) of BQ27441 extended memory.
@@ -266,7 +297,7 @@ bool set_capacity(uint16_t capacity)
   uint8_t capLSB = capacity & 0x00FF;
   uint8_t capacityData[2] = {capMSB, capLSB};
 
-  enterConfig();
+  write_enterConfig();
 
   //-----------------------------------------------------
 
@@ -355,7 +386,37 @@ bool set_capacity(uint16_t capacity)
   Wire.write(newCheckSum);                        //write new check sum
   Wire.endTransmission(true);
 
-  exitConfig();
+  write_exitConfig();
+}
+
+// Use BlockData() to write a byte to an offset of the loaded data
+bool write_block_data(uint8_t offset, uint8_t data){
+  //writeExtendedData(BQ27441_ID_STATE, 10, capacityData, 2);
+    
+  uint8_t address = offset + 0x40;        //BQ27441_EXTENDED_BLOCKDAT = 0x40;
+  Wire.beginTransmission(0x55);
+  Wire.write(address);                    //write subaddress
+  Wire.write(data);                       //write data
+  Wire.endTransmission(true);
+
+  return true;
+}
+
+// Use BlockData() to read a byte from the loaded extended data
+uint8_t read_block_data(uint8_t offset)
+{
+  uint8_t ret;
+  uint8_t address = offset + 0x40;        //BQ27441_EXTENDED_BLOCKDATA  0x40 // BlockData()
+  
+  //i2cReadBytes(address, &ret, 1);
+  Wire.beginTransmission(0x55);
+  Wire.write(address);
+  Wire.endTransmission(true);
+
+  Wire.requestFrom(0x55, 1);              //read 1 byte of data.
+  ret = Wire.read();
+  
+  return ret;
 }
 
 void write_check_sum(uint8_t newCheckSum){
@@ -367,7 +428,7 @@ void write_check_sum(uint8_t newCheckSum){
   Wire.endTransmission(true);
 }
 
-uint8_t blockDataChecksum()
+uint8_t write_blockDataChecksum()
 {
    uint8_t recalculate_check_sum;
 
@@ -410,26 +471,26 @@ void  write_blockDataControl()
     //enable block data control
   uint8_t enableByte = 0x00;
   Wire.beginTransmission(0x55);
-  Wire.write(0x61);             //BQ27441_EXTENDED_CONTROL
+  Wire.write(0x61);                   //BQ27441_EXTENDED_CONTROL
   Wire.write(enableByte);
   Wire.endTransmission(true);
 }
 
-void write_blockDataClass()
+void write_blockDataClass(uint8_t classID)
 {
   //enable block data class
   Wire.beginTransmission(0x55);
-  Wire.write(0x3E);             //BQ27441_EXTENDED_DATACLASS
-  Wire.write(82);               //BQ27441_ID_STATE      82
+  Wire.write(0x3E);                   //BQ27441_EXTENDED_DATACLASS
+  Wire.write(classID);          
   Wire.endTransmission(true);
 }
 
-void write_blockDataOffset()
+void write_blockDataOffset(uint8_t offset)
 {
   //enable block data offset
   Wire.beginTransmission(0x55);
-  Wire.write(0x3F);             //BQ27441_EXTENDED_DATABLOCK 0x3F
-  Wire.write(10/32);            //offset is usually 0
+  Wire.write(0x3F);                   //BQ27441_EXTENDED_DATABLOCK 0x3F
+  Wire.write(offset / 32);            //offset is usually 0
   Wire.endTransmission(true);
 }
 uint16_t read_opconfig_register()
@@ -444,7 +505,7 @@ uint16_t read_opconfig_register()
   
   Wire.requestFrom(0x55, 2);                           
   
-  for (int i=0; i<count; i++)
+  for (int i=0; i<2; i++)
   {
     data[i] = Wire.read();
   }
@@ -452,7 +513,8 @@ uint16_t read_opconfig_register()
   return ((uint16_t) data[1] << 8) | data[0];
 }
 
-bool setGPOUTPolarity(bool activeHigh)
+// Set GPOUT polarity to active-high or active-low
+bool write_setGPOUTPolarity(bool activeHigh)
 {
   uint16_t oldOpConfig = read_opconfig_register();
 
@@ -467,16 +529,122 @@ bool setGPOUTPolarity(bool activeHigh)
     newOpConfig |= (1 << 11);
   else
     newOpConfig &= ~(1 << 11);
-  
-  return writeOpConfig(newOpConfig);
 
+  //-------writeOpConfig(newOpConfig)-----------------------
+ 
   //---write 16 bit opconfig register in extended data.
-  uint8_t opConfigMSB = value >> 8;
-  uint8_t opConfigLSB = value & 0x00FF;
+  uint8_t opConfigMSB = newOpConfig >> 8;
+  uint8_t opConfigLSB = newOpConfig & 0x00FF;
   uint8_t opConfigData[2] = {opConfigMSB, opConfigLSB};
 
-    // OpConfig register location: BQ27441_ID_REGISTERS id, offset 0
-  //return writeExtendedData(BQ27441_ID_REGISTERS, 0, opConfigData, 2);
+  // OpConfig register location: BQ27441_ID_REGISTERS id, offset 0
+  write_extended_data(64, 0, opConfigData,2);           //BQ27441_ID_REGISTERS    64  // Registers
+
+}
+
+// Set the SOC1 set and clear thresholds to a percentage
+bool write_setSOC1Thresholds(uint8_t set, uint8_t clear)
+{
+  uint8_t thresholds[2];
+  thresholds[0] = constrain(set, 0, 100);                           //constrain is from arduino.h, constrains X between A and B, for example SET between 0 and 100
+  thresholds[1] = constrain(clear, 0, 100);
+  return write_extended_data(49, 0, thresholds, 2);                 //BQ27441_ID_DISCHARGE    49  // Discharge
+}
+
+// Set the SOCF set and clear thresholds to a percentage
+bool write_setSOCFThresholds(uint8_t set, uint8_t clear)
+{
+  uint8_t thresholds[2];
+  thresholds[0] = constrain(set, 0, 100);
+  thresholds[1] = constrain(clear, 0, 100);
+  return write_extended_data(49, 2, thresholds, 2);   //BQ27441_ID_DISCHARGE    49  // Discharge
+}
+
+// Set GPOUT function to BAT_LOW or SOC_INT
+bool write_setGPOUTFunction(gpout_function function)
+{
+  uint16_t oldOpConfig =  read_opconfig_register();
+  
+  // Check to see if we need to update opConfig:                    //BQ27441_OPCONFIG_BATLOWEN (1<<2) BIT 2 of opConfig register.
+  if ((function && (oldOpConfig & (1<<2))) ||
+        (!function && !(oldOpConfig & (1<<2))))
+    return true;
+  
+  // Modify BATLOWN_EN bit of opConfig:
+  uint16_t newOpConfig = oldOpConfig;
+  if (function)
+    newOpConfig |= (1<<2);
+  else
+    newOpConfig &= ~( (1<<2) );
+
+  // Write new opConfig
+
+  //-------writeOpConfig(newOpConfig)-----------------------
+ 
+  //---write 16 bit opconfig register in extended data.
+  uint8_t opConfigMSB = newOpConfig >> 8;
+  uint8_t opConfigLSB = newOpConfig & 0x00FF;
+  uint8_t opConfigData[2] = {opConfigMSB, opConfigLSB};
+
+  // OpConfig register location: BQ27441_ID_REGISTERS id, offset 0
+  write_extended_data(64, 0, opConfigData,2);           //BQ27441_ID_REGISTERS    64  // Registers
+
+}
+uint8_t read_extended_data(uint8_t classID, uint8_t offset)
+{
+  uint8_t retData = 0;
+  
+  write_enterConfig();
+    
+  write_blockDataControl(); // // enable block data memory control
+  
+  write_blockDataClass(classID); // Write class ID using DataBlockClass()
+  
+  write_blockDataOffset(offset / 32); // Write 32-bit block offset (usually 0)
+  
+  calculate_check_sum(); // Compute checksum going in
+  
+  uint8_t oldCsum = write_blockDataChecksum();
+  
+  retData = read_block_data(offset % 32); // Read from offset (limit to 0-31)
+  
+  write_exitConfig();
+  
+  return retData;
+}
+// Write a specified number of bytes to extended data specifying a 
+// class ID, position offset.
+bool write_extended_data(uint8_t classID, uint8_t offset, uint8_t * data, uint8_t len)
+{
+  if (len > 32)
+    return false;
+  
+  write_enterConfig();
+  
+  write_blockDataControl();
+
+  write_blockDataClass(classID);
+
+  write_blockDataOffset(offset / 32);
+  
+  calculate_check_sum(); // Compute checksum going in
+  uint8_t oldCsum = write_blockDataChecksum();  //read checksum value from fuel guage ic
+
+  // Write data bytes:
+  for (int i = 0; i < len; i++)
+  {
+    // Write to offset, mod 32 if offset is greater than 32
+    // The blockDataOffset above sets the 32-bit block
+    write_block_data((offset % 32) + i, data[i]);
+  }
+  
+  // Write new checksum using BlockDataChecksum (0x60)
+  uint8_t newCsum = calculate_check_sum(); // Compute the new checksum
+  write_check_sum(newCsum);
+
+  write_exitConfig();
+  
+  return true;
 }
 
 //------------------Read values from BQ27441-----------------------------
@@ -618,6 +786,46 @@ void read_soh(int soh_type = 1)
   Serial.println(" ");
   Serial.print("State of Health Status Reading: ");
   Serial.println( (int) sohStatus);
+}
+
+// Get GPOUT polarity setting (active-high or active-low)
+bool read_GPOUTPolarity()
+{
+  uint16_t opConfigRegister = read_opconfig_register();
+  
+  return (opConfigRegister & (1 << 11 ) );       //BQ27441_OPCONFIG_GPIOPOL  (1<<11)
+}
+
+// Get GPOUT function (BAT_LOW or SOC_INT)
+bool read_GPOUTFunction()
+{
+  uint16_t opConfigRegister = read_opconfig_register();
+  
+  return (opConfigRegister & (1<<2) );  //BQ27441_OPCONFIG_BATLOWEN (1<<2)
+}
+
+// Get SOC1_Set Threshold - threshold to set the alert flag
+uint8_t read_SOC1SetThreshold(void)
+{
+  return read_extended_data(49, 0); //BQ27441_ID_DISCHARGE    49  // Discharge
+}
+
+// Get SOC1_Clear Threshold - threshold to clear the alert flag
+uint8_t read_SOC1ClearThreshold(void)
+{
+  return read_extended_data(49, 1);  //BQ27441_ID_DISCHARGE   49  // Discharge
+}
+
+// Get SOCF_Set Threshold - threshold to set the alert flag
+uint8_t read_SOCFSetThreshold(void)
+{
+  return read_extended_data(49, 2);   //BQ27441_ID_DISCHARGE   49  // Discharge
+}
+
+// Get SOCF_Clear Threshold - threshold to clear the alert flag
+uint8_t read_SOCFClearThreshold(void)
+{
+  return read_extended_data(49, 3); //BQ27441_ID_DISCHARGE   49  // Discharge
 }
 
 void print_stats(){
