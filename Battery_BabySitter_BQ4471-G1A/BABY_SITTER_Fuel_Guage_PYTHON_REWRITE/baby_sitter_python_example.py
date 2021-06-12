@@ -148,6 +148,7 @@ def read_full_capacity(pi):
     print_str = "Total Capacity: %d" %(int(data[1] << 8 | data[0]) )
     
     print(print_str)
+<<<<<<< HEAD
     
 def test_read(pi_init):
     read_voltage(pi_init)
@@ -156,6 +157,8 @@ def test_read(pi_init):
     read_full_capacity(pi_init)
     #get_device_type(pi_init)
     
+=======
+>>>>>>> d55980ab9a7cec24eeebe765f8e2c4984f6bb2d5
 if __name__ == '__main__':
     try:
         os.system("sudo pigpiod")
@@ -171,7 +174,11 @@ if __name__ == '__main__':
     read_current(pi_init)
     read_capacity(pi_init)
     read_full_capacity(pi_init)
+<<<<<<< HEAD
     #get_device_type(pi_init)
+=======
+    get_device_type(pi_init)
+>>>>>>> d55980ab9a7cec24eeebe765f8e2c4984f6bb2d5
     
     
     pi_init.stop()
