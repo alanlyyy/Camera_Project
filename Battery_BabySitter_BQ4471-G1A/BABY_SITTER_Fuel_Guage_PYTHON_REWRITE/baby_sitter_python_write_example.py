@@ -315,6 +315,23 @@ def write_block_data(pi, offset, data):
     pi.i2c_write_byte_data(handle,address,data)             
     pi.i2c_close(handle)
     
+def read_block_data(pi, offset):
+    #Use BlockData() to read a byte from the loaded extended data
+    
+    address = (offset & 0xFF) + 0x40                            #BQ27441_EXTENDED_BLOCKDATA  0x40 // BlockData() - constrain to 1 BYTE
+    
+    handle = pi.i2c_open(1, 0x55)
+    pi.i2c_write_byte(address)
+    pi.i2c_close(handle)
+    
+    handle = pi.i2c_open(1, 0x55)
+    (b, d) =  pi.i2c_read_device(handle, 1)                     #read 1 byte of data.    
+    data = struct.unpack('<B', buffer(d))
+    pi.i2c_close(handle)
+    
+    return data
+    
+    
 def write_check_sum(pi, new_check_sum):
     """Write new checksum to register 0x60 #BQ27441_EXTENDED_CHECKSUM
     
@@ -358,6 +375,29 @@ def write_extended_data(pi, classID, offset, data, len):
     
     print("Old CheckSum", old_cs)
     print ("New CheckSum", new_check_sum)
+    
+def read_extended_data(pi, classID, offset):
+    
+    enterConfig(pi)
+    
+    block_data_control(pi)                      #cannot access if device is sealsed
+    
+    block_data_class(pi,classID)                #cannot access if device is sealed
+    
+    block_data_offset(pi,offset/32)
+    
+    old_cs = calculate_checksum(pi)
+    
+    old_check_sum = block_data_checksum(pi)
+    
+    return_data = read_block_data( pi, (offset % 32) )      #Read from offset (limit to 0-31)
+    
+    exitConfig(pi) 
+    
+    print("Old CheckSum", old_cs)               
+    print ("New CheckSum", old_check_sum)
+    
+    return return_data
     
 def set_capacity(pi, capacity):
     
