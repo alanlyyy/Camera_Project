@@ -349,23 +349,17 @@ class BQ27441:
         
     def read_flags(self):
         """Quick read flags register"""
-        
-        handle = self.pi.i2c_open(1, 0x55)
-        self.pi.i2c_write_byte(handle,0x06)         #//BQ27441_COMMAND_FLAGS      0x06 , Flags()
-        self.pi.i2c_close(handle)
-        
         #quick read flags register
         handle = self.pi.i2c_open(1,0x55)
-        (b, d) = self.pi.i2c_read_device(handle, 2)        #buffer read 32 bytes from fuel guage
-        (d0, d1) = struct.unpack('<BB', buffer(d))
+        d0 = self.pi.i2c_read_byte_data(handle, 0x06)        #read LSB
+        d1 = self.pi.i2c_read_byte_data(handle, 0x07)        #read MSB
         self.pi.i2c_close(handle)              #close i2c
         
-        time.sleep(0.00066)
-        
-        timeout = BQ72441_I2C_TIMEOUT
         flags = d1 << 8 | d0    #if flags == 0, config mode is turned off
         
         print("Flags: ", flags)
+        
+        return flags
 
     def read_control_status_register(self):
         """Quick Read control status register."""
@@ -377,8 +371,8 @@ class BQ27441:
         self.pi.i2c_close(handle)
         
         handle = self.pi.i2c_open(1,0x55)
-        (b, d) = self.pi.i2c_read_device(handle, 2)        
-        (d0, d1) = struct.unpack('<BB', buffer(d))
+        d0 = self.pi.i2c_read_byte_data(handle, 0x00)        #read LSB
+        d1 = self.pi.i2c_read_byte_data(handle, 0x00)        #read MSB
         self.pi.i2c_close(handle)              #close i2c
         
         
@@ -392,19 +386,11 @@ class BQ27441:
     def read_opconfig_register(self):
         #BQ27441_EXTENDED_OPCONFIG  0x3A // OpConfig()
         
-        #quick write to opConfig register
-        handle = self.pi.i2c_open(1, 0x55)   
-        self.pi.i2c_write_byte(handle, 0x3A) 
-        self.pi.i2c_close(handle)
-        
         #quick read OPCONFIG REGISTER
         handle = self.pi.i2c_open(1,0x55)
-        (b, d) = self.pi.i2c_read_device(handle, 2)        #buffer read 2 bytes from fuel guage
+        d0 = self.pi.i2c_read_byte_data(handle, 0x3A)        #read LSB
+        d1 = self.pi.i2c_read_byte_data(handle, 0x3B)        #read MSB
         self.pi.i2c_close(handle)
-        
-        
-        #the number of bytes d has to equal format string. (here requesting 2 unsigned char 1 byte each for d0 and d1)
-        (d0, d1) = struct.unpack('<BB', buffer(d))
         
         OPCONFIG = (d1 << 8) | d0
         
@@ -546,21 +532,15 @@ class BQ27441:
         
     def read_voltage(self):
       
-      #read voltage from register 0x04
-      handle = self.pi.i2c_open(1, 0x55)     #open i2c at 0x55
-      self.pi.i2c_write_byte(handle, 0x04)   #write subaddress
-      self.pi.i2c_close(handle)
+        #read voltage
+        handle = self.pi.i2c_open(1, 0x55)
+        d0_voltage = self.pi.i2c_read_byte_data(handle, 0x04) #read LSB
+        d1_voltage = self.pi.i2c_read_byte_data(handle, 0x05) #read MSB
+        self.pi.i2c_close(handle)              #close i2c
         
-      #Quick read
-      handle = self.pi.i2c_open(1, 0x55)     #open i2c at 0x55
-      (b, d) = self.pi.i2c_read_device(handle, 2)        #buffer read 2 bytes from fuel guage
-      (d0, d1) = struct.unpack('<BB', buffer(d))    
+        print_str = "Voltage: %d" %(int(d1_voltage << 8 | d0_voltage) )
+        print(print_str)
       
-      self.pi.i2c_close(handle)              #close i2c
-      
-      print_str = "Voltage: %d" %(int(d1 << 8 | d0) )
-      print( print_str )
-
     def get_device_type(self):
         
         handle = self.pi.i2c_open(1, 0x55)     #open i2c at 0x55
@@ -581,30 +561,21 @@ class BQ27441:
 
     def read_current(self):
 
-        handle = self.pi.i2c_open(1, 0x55)     #open i2c at 0x55
-        self.pi.i2c_write_byte(handle, 0x10)
-        self.pi.i2c_close(handle)
+        #read current
+        handle = self.pi.i2c_open(1, 0x55)
+        d0_current = self.pi.i2c_read_byte_data(handle, 0x10) #read LSB
+        d1_current = self.pi.i2c_read_byte_data(handle, 0x11) #read MSB
+        self.pi.i2c_close(handle)              #close i2c
         
-        
-        handle = self.pi.i2c_open(1, 0x55)     #open i2c at 0x55
-        (b, d) = self.pi.i2c_read_device(handle, 2)        #buffer read 2 bytes from fuel guage
-        (d0, d1) = struct.unpack('<BB', buffer(d))
-        self.pi.i2c_close(handle)           
-
-        print_str = "Current: %d" %(int(d1 << 8 | d0) )
-        print( print_str )
+        print_str = "Current: %d" %(int(d1_current << 8 | d0_current) )
+        print(print_str)
         
     def read_capacity(self):
 
-        handle = self.pi.i2c_open(1, 0x55)     #open i2c at 0x55
-        self.pi.i2c_write_byte(handle, 0x0C)
-        self.pi.i2c_close(handle)
-        
-        handle = self.pi.i2c_open(1, 0x55)     #open i2c at 0x55
-        (b, d) = self.pi.i2c_read_device(handle, 2)        #buffer read 2 bytes from fuel guage
-      
-        #the number of bytes d has to equal format string. (here requesting 2 unsigned char 1 byte each for d0 and d1)
-        (d0, d1) = struct.unpack('<BB', buffer(d))
+        #read current
+        handle = self.pi.i2c_open(1, 0x55)
+        d0 = self.pi.i2c_read_byte_data(handle, 0x0C) #read LSB
+        d1 = self.pi.i2c_read_byte_data(handle, 0x0D) #read MSB
         self.pi.i2c_close(handle)              #close i2c
         
         print_str = "Capacity Remaining: %d" %(int(d1 << 8 | d0) )
@@ -612,26 +583,137 @@ class BQ27441:
         
     def read_full_capacity(self):
 
-        handle = self.pi.i2c_open(1, 0x55)     #open i2c at 0x55
-        self.pi.i2c_write_byte(handle, 0x0E)
-        self.pi.i2c_close(handle)
-        
-        
-        handle = self.pi.i2c_open(1, 0x55)     
-        (b, d) = self.pi.i2c_read_device(handle, 2)        
-        (d0, d1) = struct.unpack('<BB', buffer(d))
+        #read current
+        handle = self.pi.i2c_open(1, 0x55)
+        d0 = self.pi.i2c_read_byte_data(handle, 0x0E) #read LSB
+        d1 = self.pi.i2c_read_byte_data(handle, 0x0F) #read MSB
         self.pi.i2c_close(handle)              #close i2c
         
-        print_str = "Total Capacity: %d" %(int(d1 << 8 | d0) )
-        
+        print_str = "FULL Capacity: %d" %(int(d1 << 8 | d0) )
         print(print_str)
+        
+    def read_SOC(self):
+
+        #read soc
+        handle = self.pi.i2c_open(1, 0x55)
+        d0_soc = self.pi.i2c_read_byte_data(handle, 0x1C) #read LSB
+        d1_soc = self.pi.i2c_read_byte_data(handle, 0x1D) #read MSB
+        self.pi.i2c_close(handle)              #close i2c
+        
+        print_str = "SOC: %d" %(int(d1_soc << 8 | d0_soc) )
+        print(print_str)
+        
+        
+    def read_SOH(self):
+
+        #read soh
+        handle = self.pi.i2c_open(1, 0x55)
+        d0_soh_percentage = self.pi.i2c_read_byte_data(handle, 0x20) #read LSB
+        d1_soh_status = self.pi.i2c_read_byte_data(handle, 0x21) #read MSB
+        self.pi.i2c_close(handle)              #close i2c
+        
+        print_str_percent = "SOH Percent: %d" %(int(d0_soh_percentage) )
+        print_str_status = "SOH Status: %d" %(int(d1_soh_status) )
+        print(print_str_percent, " ", print_str_status)
+        
         
     def test_read(self):
         self.read_voltage()
         self.read_current()
         self.read_capacity()
         self.read_full_capacity()
+        self.read_SOC()
+        self.read_SOH()
         self.get_device_type()
+        
+    def test_read_all(self):
+    
+        #read current
+        handle = self.pi.i2c_open(1, 0x55)
+        d0_current = self.pi.i2c_read_byte_data(handle, 0x10) #read LSB
+        d1_current = self.pi.i2c_read_byte_data(handle, 0x11) #read MSB
+        self.pi.i2c_close(handle)              #close i2c
+        
+        print_str = "Current: %d" %(int(d1_current << 8 | d0_current) )
+        print(print_str)
+        
+        #read voltage
+        handle = self.pi.i2c_open(1, 0x55)
+        d0_voltage = self.pi.i2c_read_byte_data(handle, 0x04) #read LSB
+        d1_voltage = self.pi.i2c_read_byte_data(handle, 0x05) #read MSB
+        self.pi.i2c_close(handle)              #close i2c
+        
+        print_str = "Voltage: %d" %(int(d1_voltage << 8 | d0_voltage) )
+        print(print_str)
+        
+        #read soc
+        handle = self.pi.i2c_open(1, 0x55)
+        d0_soc = self.pi.i2c_read_byte_data(handle, 0x1C) #read LSB
+        d1_soc = self.pi.i2c_read_byte_data(handle, 0x1D) #read MSB
+        self.pi.i2c_close(handle)              #close i2c
+        
+        print_str = "SOC: %d" %(int(d1_soc << 8 | d0_soc) )
+        print(print_str)
+        
+        #read soh
+        handle = self.pi.i2c_open(1, 0x55)
+        d0_soh_percentage = self.pi.i2c_read_byte_data(handle, 0x20) #read LSB
+        d1_soh_status = self.pi.i2c_read_byte_data(handle, 0x21) #read MSB
+        self.pi.i2c_close(handle)              #close i2c
+        
+        print_str_percent = "SOH Percent: %d" %(int(d0_soh_percentage) )
+        print_str_status = "SOH Status: %d" %(int(d1_soh_status) )
+        print(print_str_percent, " ", print_str_status)
+        
+    def set_GPOUT(self, SOCISET, SOCICLR, SOCFSET, SOCFCLR, BATLOW, POL):
+        """Setting GPOUT routine."""
+        
+        self.setGPOUTPolarity(POL)                                            #Set GPOUT to active-high
+        time.sleep(1)
+        
+        self.setGPOUTFunction(BATLOW)                                          #Set GPOUT to BAT_LOW mode
+        time.sleep(1)
+        
+        self.setSOC1Thresholds( SOCISET, SOCICLR)                              #Set SOCI set and clear thresholds
+        time.sleep(1)
+        
+        self.setSOCFThresholds( SOCFSET, SOCFCLR)                              #Set SOCF set and clear thresholds
+        time.sleep(1)
+        
+        self.exitConfig()
+        time.sleep(1)
+        
+        if (self.read_GPOUTPolarity()):
+            print("GPOUT set to active-HIGH")
+        else:
+            print("GPOUT set to active-LOW")
+        
+        time.sleep(1)
+        print("GPOUT_POLARITY OPCONFIG REGISTER: ", self.read_opconfig_register() )
+        print("---")
+        
+        
+        if (self.read_GPOUTFunction()):
+            print("GPOUT function set to BAT_LOW")
+        else:
+            print("GPOUT function set to SOC_INT")
+        time.sleep(1)
+        
+        print("GPOUT_FUNCTION OPCONFIG REGISTER: ", self.read_opconfig_register() )
+        print("---")
+        time.sleep(1)
+        
+        print("SOC1 Set Threshold: ", str(( self.read_SOC1SetThreshold() )) )
+        time.sleep(1)
+        
+        print("SOC1 Clear Threshold: ", str(( self.read_SOC1ClearThreshold() )) )
+        time.sleep(1)
+        
+        print("SOCF Set Threshold: ", str(( self.read_SOCFSetThreshold() )) )
+        time.sleep(1)
+        
+        print("SOCF Clear Threshold: ", str(( self.read_SOCFClearThreshold() )) )
+        time.sleep(1)
         
 if __name__ == '__main__':
 
@@ -646,61 +728,15 @@ if __name__ == '__main__':
     
     bq = BQ27441(pi, GPOUT_PIN)
     
-    bq.enterConfig()
-    time.sleep(1)
-    
     bq.set_capacity(SET_CAPACITY)
     time.sleep(1)
     
-    bq.setGPOUTPolarity( 0)                                            #Set GPOUT to active-high
-    time.sleep(1)
-    
-    bq.setGPOUTFunction(BAT_LOW)                                          #Set GPOUT to BAT_LOW mode
-    time.sleep(1)
-    
-    bq.setSOC1Thresholds( SOCI_SET, SOCI_CLR)                              #Set SOCI set and clear thresholds
-    time.sleep(1)
-    
-    bq.setSOCFThresholds( SOCF_SET, SOCF_CLR)                              #Set SOCF set and clear thresholds
-    time.sleep(1)
-    
-    bq.exitConfig()
-    time.sleep(1)
-    
-    if (bq.read_GPOUTPolarity()):
-        print("GPOUT set to active-HIGH")
-    else:
-        print("GPOUT set to active-LOW")
-    
-    time.sleep(1)
-    print("GPOUT_POLARITY OPCONFIG REGISTER: ", bq.read_opconfig_register() )
-    print("---")
-    
-    
-    if (bq.read_GPOUTFunction()):
-        print("GPOUT function set to BAT_LOW")
-    else:
-        print("GPOUT function set to SOC_INT")
-    time.sleep(1)
-    
-    print("GPOUT_FUNCTION OPCONFIG REGISTER: ", bq.read_opconfig_register() )
-    print("---")
-    time.sleep(1)
-    
-    print("SOC1 Set Threshold: ", str(( bq.read_SOC1SetThreshold() )) )
-    time.sleep(1)
-    
-    print("SOC1 Clear Threshold: ", str(( bq.read_SOC1ClearThreshold() )) )
-    time.sleep(1)
-    
-    print("SOCF Set Threshold: ", str(( bq.read_SOCFSetThreshold() )) )
-    time.sleep(1)
-    
-    print("SOCF Clear Threshold: ", str(( bq.read_SOCFClearThreshold() )) )
-    time.sleep(1)
+    bq.set_GPOUT()
     
     bq.test_read()
     time.sleep(1)
-    bq.test_read()
+    bq.test_read_all()
+    time.sleep(1)
+    bq.test_read_all()
     
     pi.stop()
