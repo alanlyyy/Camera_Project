@@ -494,6 +494,36 @@ class BQ27441:
             CLR = 0
             
         self.write_extended_data( 49, 2, [SET,CLR], 2)
+    
+    def read_SOC1_Flag(self):
+        """
+        If bit 2 is set in the flag register,
+        SOC1 threshold is reached.
+        
+        BQ27441_FLAG_SOC1 (1<<2)
+        
+        """
+        
+        flagState = self.read_flags() 
+        
+        SOC1 = (flagState & 0x04) & ( 1 << 2)
+        
+        return SOC1
+        
+    def read_SOCF_Flag(self):
+        """
+        If bit 2 is set in the flag register,
+        SOCF threshold is reached.
+        
+        BQ27441_FLAG_SOCF (1<<1)
+        
+        """
+        
+        flagState = self.read_flags() 
+        
+        SOCF = (flagState & 0x02) & ( 1 << 1)
+        
+        return SOCF
 
     def read_GPOUTPolarity(self):
         #BQ27441_OPCONFIG_GPIOPOL  (1<<11)

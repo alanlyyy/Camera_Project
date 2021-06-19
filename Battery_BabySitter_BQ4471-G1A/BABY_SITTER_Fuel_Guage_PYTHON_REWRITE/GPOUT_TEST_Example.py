@@ -48,7 +48,7 @@ if  __name__ == '__main__':
         
             flagState = bq.read_flags() 
             SOC1 = (flagState & 0x04) & ( 1 << 2)         #BQ27441_FLAG_SOC1 (1<<2)
-            SOCF = (flagState & 0x01) & ( 1 << 1)         #BQ27441_FLAG_SOCF (1<<1)
+            SOCF = (flagState & 0x02) & ( 1 << 1)         #BQ27441_FLAG_SOCF (1<<1)
             
             print( "GPOUT PIN -  ", "SOC1: ", SOC1, " ", "SOCF: ", SOCF )
         
