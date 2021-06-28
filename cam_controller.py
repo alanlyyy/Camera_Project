@@ -15,6 +15,10 @@ from threading import Thread
 import passive_cam
 import active_cam
 import pigpio
+import BQ27441_source       #detect when battery soc is low. and GPOUT pin is triggered
+import os                   #used to shutdown raspberry pi through python
+import time
+
 
 class SubWindow(QtWidgets.QWidget):
     """SubWindow creates an GUI with a button to exit out of passive cam main loop."""
@@ -215,9 +219,40 @@ class UI_MainWindow(QtWidgets.QMainWindow):
     def loopGenerator(self,sub_window):
         """ runs the passive cam script, uses generator "yield" to control loop iteration."""
         
-        self.passive_cam_obj = passive_cam.Passive_Cam(pi,passive_cam.PIR, passive_cam.DHT_pin, passive_cam.PB, passive_cam.MODE_SWITCH_PB, passive_cam.MODE_WRITE_OUTPUT )
+        self.passive_cam_obj = passive_cam.Passive_Cam(self.pi, passive_cam.PIR, passive_cam.DHT_pin, passive_cam.PB, passive_cam.FAN_SWITCH)
+        
+        BQ = BQ27441_source.BQ27441(self.pi, BQ27441_source.GPOUT_PIN)
+
+        BQ.set_capacity(BQ27441_source.SET_CAPACITY)
+        time.sleep(5)
+        
+        BQ.set_GPOUT( BQ27441_source.SOCI_SET, BQ27441_source.SOCI_CLR, BQ27441_source.SOCF_SET, BQ27441_source.SOCF_CLR, BQ27441_source.BAT_LOW, 0)
+        time.sleep(5)
+        
+        BQ.test_read()
         
         while True:
+        
+            pin_4_read = self.pi.read( BQ27441_source.GPOUT_PIN )
+
+            #If the GPOUT interrupt is active (low)
+            if ( pin_4_read == 0 ):
+            
+                flagState = bq.read_flags() 
+                SOC1 = (flagState & 0x04) & ( 1 << 2)         #BQ27441_FLAG_SOC1 (1<<2)
+                SOCF = (flagState & 0x02) & ( 1 << 1)         #BQ27441_FLAG_SOCF (1<<1)
+                
+                #print( "GPOUT PIN -  ", "SOC1: ", SOC1, " ", "SOCF: ", SOCF )
+            
+                if ( SOCF ):
+                    print( "<!-- WARNING: Battery Dangerously low -->" )
+                elif( SOC1 ):
+                    print( "<!-- WARNING: Battery Low -->")
+                    
+                print("Shutting Down...")
+                print("POWER IS LOW, System is shutting down.")
+                os.system('systemctl poweroff')
+                
         
             #if PB is pressed break
             if(self.passive_cam_obj.roll() == 0):

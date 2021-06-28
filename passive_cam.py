@@ -30,21 +30,19 @@
 
 #import sys
 import pigpio
-from dht11_test import DHT_Wrapper
 import time
 import datetime
 import os
 from shutil import rmtree
 
+import Adafruit_ADT7410
+
 PIR = 27 #actual PIR is 27
-DHT_pin = 4
+temp_sensor = 4
 PB = 17
+FAN_SWITCH = 22
 
-#INPUT PB used to switch between modes and exit program successfully
-MODE_SWITCH_PB = 22    #PIN 15,GPIO22
-MODE_WRITE_OUTPUT = 23 #PIN 16, GPIO23 
-
-warm_up_time = 60
+warm_up_time = 10
 temp_read_delay_time = 30
 camera_record_time = 30
 space_limit = 0.70
@@ -66,41 +64,44 @@ else:
 class Passive_Cam:
     """passive camera mode, records 30s videos when PIR is detected."""
     
-    def __init__(self,PI_GPIO,PIR,DHT_pin,CAM_PB,MS_PB,MWO):
+    def __init__(self,PI_GPIO,PIR,temp_sensor,MS_PB,FAN):
         
         self.pi = PI_GPIO
         #store pin numbers
         self.PIR = PIR
-        self.DHT_pin = DHT_pin
-        self.PB = CAM_PB
+        self.temp_sensor = temp_sensor
         
         #hardware release switch
         self.MS_PB = MS_PB
-        self.MWO = MWO
         
-        self.pi.set_mode(self.DHT_pin,pigpio.INPUT)   
-        self.pi.set_pull_up_down(self.DHT_pin,pigpio.PUD_UP)
+        self.FAN = FAN
+        
+        self.pi.set_mode(self.temp_sensor,pigpio.INPUT)   
+        #self.pi.set_pull_up_down(self.temp_sensor,pigpio.PUD_UP)
         
         #must connect power of PIR with +5V and GND
         self.pi.set_mode(self.PIR, pigpio.INPUT)    #set gpio27 as input
         self.pi.set_pull_up_down(self.PIR,pigpio.PUD_DOWN) #enable pull down resistor
         
         #for push button
-        self.pi.set_mode(self.PB, pigpio.INPUT)
-        self.pi.set_pull_up_down(self.PB, pigpio.PUD_UP) #enable pull up resistor
+        self.pi.set_mode(self.MS_PB, pigpio.INPUT)
+        self.pi.set_pull_up_down(self.MS_PB, pigpio.PUD_UP) #enable pull up resistor
         
-        self.pi.set_mode(self.MS_PB,pigpio.INPUT)    #set gpio22 as input
-        self.pi.set_pull_up_down(self.MS_PB,pigpio.PUD_UP) #enable pull down resistor
+        #for turn on fan
+        self.pi.set_mode(self.FAN, pigpio.OUTPUT)
         
-        self.pi.set_mode(self.MWO,pigpio.OUTPUT)    #set gpio23 as output, for write functionality
-        
-        self.sensor = DHT_Wrapper(self.pi,self.DHT_pin,1)
+        #temp sensor setup
+        self.sensor = Adafruit_ADT7410.ADT7410(self.pi)
+        self.sensor.set_configuration_register(Adafruit_ADT7410.BIT_MODE)
+        self.sensor.set_temp_high(Adafruit_ADT7410.HIGH_TEMP)
+        self.sensor.set_temp_critical(Adafruit_ADT7410.CRITICAL_TEMP)
+        self.sensor.set_temp_low(Adafruit_ADT7410.LOW_TEMP)
+        self.sensor.set_temp_hyst(Adafruit_ADT7410.HYST_TEMP)
         
         print("Warming Up...")
         
         #allow sensor to warm up for 60s before recording
         #camera warm up 
-        #DHT11 warm up
         #PIR warm up
         time.sleep(warm_up_time)
         
@@ -108,8 +109,8 @@ class Passive_Cam:
         
         self.is_camera_recording = 0
         
-        #save the start time
-        self.prev_time = time.time()
+        #tracks if fan is turned on/ interrupt triggered previously
+        self.temp_flag = 0
 
     def record(self):
     
@@ -258,27 +259,23 @@ class Passive_Cam:
                     self.record_cv2()
                     time.sleep(1)
         
-        curr_time = time.time()
+        #if temp sensor triggers a high on the interrupt pin
+        if (self.pi.read(temp_sensor)):
+            
+            if (self.temp_flag == 0):
+                self.sensor.read_temp()
+                
+                #turn on the computer fan
+                self.pi.write(self.FAN,1)
+                
+                self.temp_flag =1
         
-        #get temperature reading every minute
-        if ((curr_time - self.prev_time) > temp_read_delay_time):
+        else:
+            self.temp_flag = 0
             
-            self.sensor.get_current_temperature_reading()
-            print("Getting Current Temperature reading.")
-            print("Current Temp: ", self.sensor.get_last_temp_reading())
+            #turn off the computer fan
+            self.pi.write(self.FAN,0)
             
-            #if temperature measured is greater than or equal to 50C
-            if (self.sensor.get_last_temp_reading() >= 50):
-                
-                print("Temperature is over 50C...")
-                
-                #turn on the fan for 30s
-                print("turn on the fan for 30s")
-                while ((time.time() - curr_time) < 30):
-                    pass
-            
-            #update the new prev time with curr_time
-            self.prev_time = curr_time
         
         #get current disk usage
         total, free, used = self.disk_usage(base_path)
@@ -293,7 +290,6 @@ class Passive_Cam:
                 
 if __name__ == '__main__':
 
-    #setup DHT11 sensor
     #run pigpiod before executing rest of the script.
     try:
         os.system("sudo pigpiod")
@@ -305,7 +301,7 @@ if __name__ == '__main__':
     if not pi.connected:
         exit()
     
-    cam = Passive_Cam(pi,PIR,DHT_pin,PB,MODE_SWITCH_PB,MODE_WRITE_OUTPUT)
+    cam = Passive_Cam(pi,PIR,temp_sensor,PB,FAN_SWITCH)
     
     while True:
         if (cam.roll() == 0):

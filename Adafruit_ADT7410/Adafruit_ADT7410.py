@@ -9,7 +9,30 @@ ADT7410_REG__ADT7410_STATUS = 0x02     #Status register
 ADT7410_REG__ADT7410_CONFIG = 0x03     #Configuration register
 ADT7410_REG__ADT7410_ID = 0x0B         #Manufacturer identification
 ADT7410_REG__ADT7410_SWRST = 0x2F     #Temperature hysteresis
-   
+
+#set temperature thresholds for triggering interrupt
+HIGH_TEMP = 30
+LOW_TEMP = -10
+CRITICAL_TEMP = 50
+HYST_TEMP = 5               #between 0 to 15 degrees C
+
+#CONFINGURATION REGISTER
+#FaultQueue
+BIT0 = 0x00
+BIT1 = 0x00
+#CT Polarity
+BIT2 = 0x00
+#INT Polarity
+BIT3 = 0x08
+#INTERUPT (0) OR COMPARATOR MODE (1)
+BIT4 = 0x10
+#TEMP OPERATION MODE
+BIT5 = 0x00
+BIT6 = 0x00
+#BIT RESOLUTION - 13 BIT (0) / 16 BIT (1)
+BIT7 = 0x80
+BIT_MODE = BIT0 + BIT1 + BIT2 +BIT3 + BIT4 + BIT5 + BIT6 + BIT7
+
 class ADT7410:
     
     def __init__(self, pi):
@@ -38,7 +61,7 @@ class ADT7410:
         print_str = "Temp C* : %d , Temp F*: %d" %(temp_c, temp_f)
         print(print_str)
         
-    def set_configuration_register(self):
+    def set_configuration_register(self,BIT_MODE):
         """ 
         CT self.pin used for critical temp interrupt
         INT self.pin used for below temp low or above temp high interrupt trigger.
@@ -47,16 +70,18 @@ class ADT7410:
         
         """
         #enable 16 bit
-        resolution = 0x80
+        #resolution = 0x80
         
         #enable interrupt mode
-        INT = 0x00              #comparator mode = 0x10
+        #INT = 0x00              #comparator mode = 0x10
         
         #set interrupt polarity to active high
-        INT_Polarity = 0x08
+        #INT_Polarity = 0x08
+        
+        #resolution + INT + INT_Polarity 
         
         handle = self.pi.i2c_open( 1, ADT7410_I2CADDR_DEFAULT )
-        self.pi.i2c_write_byte_data( handle, 0x03, resolution + INT + INT_Polarity )
+        self.pi.i2c_write_byte_data( handle, 0x03, BIT_MODE )
         self.pi.i2c_close(handle)                       
 
     def set_temp_high(self, temp):
@@ -213,7 +238,7 @@ class ADT7410:
         BIT 0:1 - Fault Queue, set number of undertemp + overtemp faults that occur before setting int/ct self.pin.
         BIT 2: - CT self.pin Polarity (0 low / 1 high)
         BIT 3: - INT self.pin Polarity (0 low / 1 high)
-        BIT 4: - SELECT INT/CT Mode (0 INT/ 1 CT)
+        BIT 4: - SELECT Interrrupt/Comparator Mode (0 INT/ 1 Comp)
         BIT 5:6: - temp operation mode
         BIT 7: - 13 it resolution (0) / 16 bit resolution (1)
         """ 
@@ -261,32 +286,32 @@ if __name__ == '__main__':
     
     sensor.read_configuration_register()
     time.sleep(1)
-    sensor.set_configuration_register()
+    sensor.set_configuration_register(BIT_MODE)
     time.sleep(1)
     sensor.read_configuration_register()
     time.sleep(1)
     
     sensor.read_temp_high()
     time.sleep(1)
-    sensor.set_temp_high(25)
+    sensor.set_temp_high(HIGH_TEMP)
     time.sleep(1)
     sensor.read_temp_high()
     
     sensor.read_temp_low()
     time.sleep(1)
-    sensor.set_temp_low(-5)
+    sensor.set_temp_low(LOW_TEMP)
     time.sleep(1)
     sensor.read_temp_low()
     
     sensor.read_temp_critical()
     time.sleep(1)
-    sensor.set_temp_critical(75)
+    sensor.set_temp_critical(CRITICAL_TEMP)
     time.sleep(1)
     sensor.read_temp_critical()
     
     sensor.read_temp_hyst()
     time.sleep(1)
-    sensor.set_temp_hyst( 1)
+    sensor.set_temp_hyst(HYST_TEMP)
     time.sleep(1)
     sensor.read_temp_hyst()
     
