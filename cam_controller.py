@@ -219,13 +219,17 @@ class UI_MainWindow(QtWidgets.QMainWindow):
     def loopGenerator(self,sub_window):
         """ runs the passive cam script, uses generator "yield" to control loop iteration."""
         
-        self.passive_cam_obj = passive_cam.Passive_Cam(self.pi, passive_cam.PIR, passive_cam.DHT_pin, passive_cam.PB, passive_cam.FAN_SWITCH)
+        #setup passive cam
+        self.passive_cam_obj = passive_cam.Passive_Cam(self.pi, passive_cam.PIR, passive_cam.temp_sensor, passive_cam.PB, passive_cam.FAN_SWITCH)
         
+        #setup battery baby sitter
         BQ = BQ27441_source.BQ27441(self.pi, BQ27441_source.GPOUT_PIN)
-
+        
+        #set capacity for battery baby sitter
         BQ.set_capacity(BQ27441_source.SET_CAPACITY)
         time.sleep(5)
         
+        #set interrupt function for low battery 
         BQ.set_GPOUT( BQ27441_source.SOCI_SET, BQ27441_source.SOCI_CLR, BQ27441_source.SOCF_SET, BQ27441_source.SOCF_CLR, BQ27441_source.BAT_LOW, 0)
         time.sleep(5)
         
@@ -238,7 +242,7 @@ class UI_MainWindow(QtWidgets.QMainWindow):
             #If the GPOUT interrupt is active (low)
             if ( pin_4_read == 0 ):
             
-                flagState = bq.read_flags() 
+                flagState = BQ.read_flags() 
                 SOC1 = (flagState & 0x04) & ( 1 << 2)         #BQ27441_FLAG_SOC1 (1<<2)
                 SOCF = (flagState & 0x02) & ( 1 << 1)         #BQ27441_FLAG_SOCF (1<<1)
                 

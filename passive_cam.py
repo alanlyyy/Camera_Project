@@ -37,10 +37,10 @@ from shutil import rmtree
 
 import Adafruit_ADT7410
 
-PIR = 27 #actual PIR is 27
+PIR = 22 #actual PIR is 27
 temp_sensor = 4
-PB = 17
-FAN_SWITCH = 22
+PB = 23
+FAN_SWITCH = 27
 
 warm_up_time = 10
 temp_read_delay_time = 30
@@ -92,11 +92,17 @@ class Passive_Cam:
         
         #temp sensor setup
         self.sensor = Adafruit_ADT7410.ADT7410(self.pi)
+        time.sleep(1)
         self.sensor.set_configuration_register(Adafruit_ADT7410.BIT_MODE)
+        time.sleep(1)
         self.sensor.set_temp_high(Adafruit_ADT7410.HIGH_TEMP)
+        time.sleep(1)
         self.sensor.set_temp_critical(Adafruit_ADT7410.CRITICAL_TEMP)
+        time.sleep(1)
         self.sensor.set_temp_low(Adafruit_ADT7410.LOW_TEMP)
+        time.sleep(1)
         self.sensor.set_temp_hyst(Adafruit_ADT7410.HYST_TEMP)
+        time.sleep(1)
         
         print("Warming Up...")
         
