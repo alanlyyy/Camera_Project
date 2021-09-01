@@ -41,6 +41,7 @@ PIR = 22 #actual PIR is 27
 temp_sensor = 4
 PB = 23
 FAN_SWITCH = 27
+Voltage_sensing = 24
 
 warm_up_time = 10
 temp_read_delay_time = 30
@@ -281,7 +282,7 @@ class Passive_Cam:
             
             #turn off the computer fan
             self.pi.write(self.FAN,0)
-            
+        
         
         #get current disk usage
         total, free, used = self.disk_usage(base_path)

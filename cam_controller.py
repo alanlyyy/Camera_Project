@@ -219,6 +219,10 @@ class UI_MainWindow(QtWidgets.QMainWindow):
     def loopGenerator(self,sub_window):
         """ runs the passive cam script, uses generator "yield" to control loop iteration."""
         
+        #Enable Voltage sensing reference signal
+        VS = 24
+        self.pi.set_mode(VS, pigpio.INPUT)
+        
         #setup passive cam
         self.passive_cam_obj = passive_cam.Passive_Cam(self.pi, passive_cam.PIR, passive_cam.temp_sensor, passive_cam.PB, passive_cam.FAN_SWITCH)
         
@@ -252,10 +256,12 @@ class UI_MainWindow(QtWidgets.QMainWindow):
                     print( "<!-- WARNING: Battery Dangerously low -->" )
                 elif( SOC1 ):
                     print( "<!-- WARNING: Battery Low -->")
-                    
-                print("Shutting Down...")
-                print("POWER IS LOW, System is shutting down.")
-                os.system('systemctl poweroff')
+                
+                #if mains power is disconnected shut off pi
+                if (self.pi.read(VS) == 0):
+                    print("Shutting Down...")
+                    print("POWER IS LOW, System is shutting down.")
+                    os.system('systemctl poweroff')
                 
         
             #if PB is pressed break
